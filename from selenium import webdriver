@@ -1,0 +1,67 @@
+from selenium import webdriver
+from selenium.webdriver.common.by import By
+from selenium.webdriver.chrome.service import Service
+from webdriver_manager.chrome import ChromeDriverManager
+import requests
+import os
+import time
+
+def download_image(image_url, directory, index):
+    """
+    Downloads an image from a given URL into a specified directory.
+    """
+    try:
+        response = requests.get(image_url)
+        if response.status_code == 200:
+            file_path = os.path.join(directory, f'image_{index}.jpg')
+            with open(file_path, 'wb') as file:
+                file.write(response.content)
+            print(f"Downloaded {file_path}")
+    except Exception as e:
+        print(f"Error downloading {image_url}: {e}")
+
+def scrape_images(search_term, limit):
+    """
+    Scrapes images from DuckDuckGo based on a search term up to a specified limit.
+    """
+    # Initialize the Chrome driver
+    service = Service(ChromeDriverManager().install())
+    driver = webdriver.Chrome(service=service)
+
+    # Go to DuckDuckGo's image search page
+    driver.get(f"https://duckduckgo.com/?q={search_term}&iax=images&ia=images")
+    time.sleep(3)  # Allow time for the page to load
+
+    # Scroll the page to ensure that images are loaded
+    last_height = driver.execute_script("return document.body.scrollHeight")
+    while True:
+        driver.execute_script("window.scrollTo(0, document.body.scrollHeight);")
+        time.sleep(3)  # Wait for new images to load
+        new_height = driver.execute_script("return document.body.scrollHeight")
+        if new_height == last_height:
+            break
+        last_height = new_height
+
+    # Find image elements on the page
+    images = driver.find_elements(By.CSS_SELECTOR, "img.tile--img__img.js-lazyload")
+    images = images[:limit]  # Limit the number of images to download
+
+    # Create a directory for the downloaded images
+    directory = f"downloaded_images_{search_term.replace(' ', '_')}"
+    if not os.path.exists(directory):
+        os.makedirs(directory)
+
+    # Download the images
+    for index, image in enumerate(images):
+        image_url = image.get_attribute('src')
+        if image_url:
+            download_image(image_url, directory, index)
+
+    driver.quit()
+    print(f"Finished downloading images to {directory}.")
+
+# Example usage
+search_term = "bench press"  # Specify the search term here
+limit = 130 # Specify the maximum number of images to download
+
+scrape_images(search_term, limit)
